@@ -94,10 +94,11 @@ contract FoundingTeam is Owned {
 
         enabled = true;
 
-        // All timestamps from 2019-06-01 to 2021-05-01
+        // Only for test
         timestamps.push(1544544000); // 2018-12-12	00:00 
         timestamps.push(1544630400); // 2018-12-13	00:00 
         
+        // All timestamps from 2019-06-01 to 2021-05-01
         timestamps.push(1559361600); // 2019-06-01	12:00 
         timestamps.push(1561953600); // 2019-07-01	12:00 
         timestamps.push(1564632000); // 2019-08-01	12:00 
@@ -129,6 +130,14 @@ contract FoundingTeam is Owned {
      */
     modifier onlyMember {
         require(team.m0 == msg.sender || team.m1 == msg.sender || team.m2 == msg.sender || team.m3 == msg.sender, "Only member");
+        _;
+    }
+
+    /**
+     * Only owner or members
+     */
+    modifier onlyOwnerOrMember {
+        require(msg.sender == owner || team.m0 == msg.sender || team.m1 == msg.sender || team.m2 == msg.sender || team.m3 == msg.sender, "Only member");
         _;
     }
 
@@ -409,7 +418,7 @@ contract FoundingTeam is Owned {
     /**
      * Candy every month
      */
-    function candy() external onlyOwner {
+    function candy() external onlyOwnerOrMember {
         require(enabled, "Must enabled");
         // Remaining tokens
         uint256 tokens = tripio.balanceOf(address(this));
