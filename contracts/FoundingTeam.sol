@@ -18,18 +18,30 @@ contract FoundingTeam is Owned {
         uint256 amount;
     }
 
+    struct Proposal {
+        address sponsor;
+        mapping(address => bool) signatures;
+        uint256 timestamp;
+        uint8 proposalType;
+    }
+
+    uint256 public proposalLength = 0;
+
+    // decisions,all proposals are indexed by decisionIndex
+    mapping(uint256 => Proposal) public proposalMap;
+
+    mapping (uint256 => mapping (address => uint16)) public suggestedPercentagesMap;
+    mapping (uint256 => Team) public suggestedTeamMap;
+    mapping (uint256 => uint8) public suggestStatusMap; 
+    mapping (uint256 => bool) public suggestTerminalMap;
+
     Team team;
-    Team newTeam;
 
     // TRIO contract 
     TripioToken tripio;
 
     // Percentage of funds
     mapping(address => uint16) percentages;
-    mapping(address => uint16) newPercentages;
-
-    // Signatures
-    mapping(address => bool) signatures;
 
     // All deposits
     mapping(uint256 => Deposit) deposits;
@@ -37,14 +49,23 @@ contract FoundingTeam is Owned {
 
     // Enable 
     bool public enabled;
-    uint8 public newStatus;
-
-    // Terminal
-    bool public terminal;
 
     // Timestamps
     uint256[] timestamps;
 
+    // proposalType == 1
+    event PercentagesProposalMade(address _sponsor, uint256 _timestamp, uint16 _m0P, uint16 _m1P, uint16 _m2P, uint16 _m3P);
+
+    // proposalType == 2
+    event MembersProposalMade(address _sponsor, uint256 _timestamp, address _m0, address _m1, address _m2, address _m3);
+
+    // proposalType == 3
+    event StatusProposalMade(address _sponsor, uint256 _timestamp, uint8 _status);
+
+    // proposalType == 4
+    event TerminalProposalMade(address _sponsor, uint256 _timestamp, bool _terminal);
+
+    event Vote(address _voter, uint256 _proposalIndex);
     /**
      * This emits when deposited
      */
@@ -156,73 +177,71 @@ contract FoundingTeam is Owned {
         depositIndex = 0;
     }
 
-    function _resetPercentages() private {
-        delete newPercentages[team.m0];
-        delete newPercentages[team.m1];
-        delete newPercentages[team.m2];
-        delete newPercentages[team.m3];
-    }
-
-    function _resetMembers() private {
-        newTeam.m0 = address(0);
-        newTeam.m1 = address(0);
-        newTeam.m2 = address(0);
-        newTeam.m3 = address(0);
-    }
-
-    function _resetStatus() private {
-        newStatus = 0;
-    }
-
-    function _resetTerminal() private {
-        terminal = false;
-    }
-
     /**
-     * Current members or new memebers
+     * query the proposal by proposalLength
      */
-    function teamMembers(bool _new) external view returns(address[] memory _members) {
-        _members = new address[](4);
-        if(_new) {  
-            _members[0] = newTeam.m0;
-            _members[1] = newTeam.m1;
-            _members[2] = newTeam.m2;
-            _members[3] = newTeam.m3;
-        }else {
-            _members[0] = team.m0;
-            _members[1] = team.m1;
-            _members[2] = team.m2;
-            _members[3] = team.m3;
-        }
-    }
-
-    /**
-     * Current percentages or new percentages
-     */
-    function teamPercentages(bool _new) external view returns(uint256[] memory _percentages) {
-        _percentages = new uint256[](4);
-        if(_new) {
-            _percentages[0] = newPercentages[team.m0];
-            _percentages[1] = newPercentages[team.m1];
-            _percentages[2] = newPercentages[team.m2];
-            _percentages[3] = newPercentages[team.m3];
-        }else {
-            _percentages[0] = percentages[team.m0];
-            _percentages[1] = percentages[team.m1];
-            _percentages[2] = percentages[team.m2];
-            _percentages[3] = percentages[team.m3];
-        }
-    }
-
-    /**
-     * Current signatures
-     */
-    function teamSignatures() external view returns(bool[] memory _signatures) {
+    function teamProposal(uint256 _proposalIndex) external view returns(
+        address _sponsor,
+        bool[] memory _signatures,
+        uint256 _timestamp,
+        uint8 _proposalType,
+        uint16[] memory _percentages,
+        address[] memory _members,
+        uint8 _status,
+        bool _terminal
+    ) {
+        Proposal storage proposal = proposalMap[_proposalIndex];
+        mapping (address => bool) storage signatures = proposal.signatures;
         _signatures = new bool[](4);
+        _percentages = new uint16[](4);
+        _members = new address[](4);
+
+        _sponsor = proposal.sponsor;
         _signatures[0] = signatures[team.m0];
         _signatures[1] = signatures[team.m1];
         _signatures[2] = signatures[team.m2];
         _signatures[3] = signatures[team.m3];
+        _timestamp = proposal.timestamp;
+        _proposalType = proposal.proposalType;
+
+        if (_proposalType == 1) {  
+            _percentages[0] = suggestedPercentagesMap[_proposalIndex][team.m0];
+            _percentages[1] = suggestedPercentagesMap[_proposalIndex][team.m1];
+            _percentages[2] = suggestedPercentagesMap[_proposalIndex][team.m2];
+            _percentages[3] = suggestedPercentagesMap[_proposalIndex][team.m3];
+        } else if (_proposalType == 2) {
+            _members[0] = suggestedTeamMap[_proposalIndex].m0;
+            _members[1] = suggestedTeamMap[_proposalIndex].m1;
+            _members[2] = suggestedTeamMap[_proposalIndex].m2;
+            _members[3] = suggestedTeamMap[_proposalIndex].m3;
+        } else if (_proposalType == 3) {
+            _status = suggestStatusMap[_proposalIndex];
+        } else if (_proposalType == 4) {
+            _terminal = suggestTerminalMap[_proposalIndex];
+        }
+
+    }
+
+    /**
+     * Current percentages
+     */
+    function teamPercentages() external view returns(uint16[] memory _percentages) {
+        _percentages = new uint16[](4);
+        _percentages[0] = percentages[team.m0];
+        _percentages[1] = percentages[team.m1];
+        _percentages[2] = percentages[team.m2];
+        _percentages[3] = percentages[team.m3];
+    }
+
+    /**
+     * Current members
+     */
+    function teamMembers() external view returns(address[] memory _members) {
+        _members = new address[](4);
+        _members[0] = team.m0;
+        _members[1] = team.m1;
+        _members[2] = team.m2;
+        _members[3] = team.m3;
     }
 
     /**
@@ -247,121 +266,136 @@ contract FoundingTeam is Owned {
         
         // Event
         emit Deposited(msg.sender, value);
-    } 
+    }
 
     /**
-     * Update the percentages, need all memebers's signatures
+     * Make a proposal for updating percentages
      */
-    function updatePercentages(uint16 _m0, uint16 _m1, uint16 _m2, uint16 _m3) external onlyMember {
-        _resetStatus();
-        _resetMembers();
-        _resetTerminal();
-        if(_m0 + _m1 + _m2 + _m3 == 1000){
-            newPercentages[team.m0] = _m0;
-            newPercentages[team.m1] = _m1;
-            newPercentages[team.m2] = _m2;
-            newPercentages[team.m3] = _m3;
+    function vote (address _sponsor, uint256 _proposalIndex, uint _proposalType) external onlyMember {
+        Proposal storage proposal = proposalMap[_proposalIndex];
+        require (proposal.sponsor == _sponsor && proposal.proposalType == _proposalType, "proposal check fail");
 
-            delete signatures[team.m0];
-            delete signatures[team.m1];
-            delete signatures[team.m2];
-            delete signatures[team.m3];
+        proposal.signatures[msg.sender] = true;
+       
+        if (_proposalType == 1) {
+            _updatePercentages(_proposalIndex);
+        }
+        if (_proposalType == 2) {
+            _updateMembers(_proposalIndex);
+        }
+        if (_proposalType == 3) {
+            _updateStatus(_proposalIndex);
+        }
+        if (_proposalType == 4) {
+            _terminate(_proposalIndex);
         }
 
-        if (newPercentages[team.m0] + newPercentages[team.m1] + newPercentages[team.m2] + newPercentages[team.m3] == 1000) {
-            signatures[msg.sender] = true;
-        }
+        emit Vote(msg.sender, _proposalIndex);
+    }
+
+    /**
+     * check if 3/4 agree
+     */
+    function _isThreeQuarterAgree (Proposal storage _proposal) private returns (bool res) {
+        mapping (address => bool) storage signatures = _proposal.signatures;
+        uint256 timestamp = _proposal.timestamp;
         
-        if(signatures[team.m0] && signatures[team.m1] && signatures[team.m2] && signatures[team.m3]) {
-            percentages[team.m0] = newPercentages[team.m0];
-            percentages[team.m1] = newPercentages[team.m1];
-            percentages[team.m2] = newPercentages[team.m2];
-            percentages[team.m3] = newPercentages[team.m3];
+        return (_proposal.timestamp + 1 days > now) && (
+            (signatures[team.m0] && signatures[team.m1] && signatures[team.m2])
+            || (signatures[team.m0] && signatures[team.m2] && signatures[team.m3])
+            || (signatures[team.m1] && signatures[team.m2] && signatures[team.m3])
+        );
+    }
 
-            _resetPercentages();
+    /**
+     * check if 4/4 agree
+     */
+    function _isAllAgree (Proposal storage _proposal) private returns (bool res) {
+        mapping (address => bool) storage signatures = _proposal.signatures;
+        uint256 timestamp = _proposal.timestamp;
 
-            delete signatures[team.m0];
-            delete signatures[team.m1];
-            delete signatures[team.m2];
-            delete signatures[team.m3];
+        return (_proposal.timestamp + 1 days > now)
+        && signatures[team.m0] && signatures[team.m1] && signatures[team.m2] && signatures[team.m3];
+    }
+
+    function _createProposal (uint8 _proposalType) private {
+        Proposal storage proposal = proposalMap[proposalLength];
+        proposal.sponsor = msg.sender;
+        proposal.signatures[msg.sender] = true;
+        proposal.timestamp = now;
+        proposal.proposalType = _proposalType;
+        proposalLength += 1;
+    }
+
+    /**
+     * Make a proposal for updating percentages
+     */
+    function updatePercentagesProposal(uint16 _m0, uint16 _m1, uint16 _m2, uint16 _m3) external onlyMember {
+        require (_m0 + _m1 + _m2 + _m3 == 1000, "the sum must be 1000");   
+        mapping (address => uint16) storage suggestedPercentage = suggestedPercentagesMap[proposalLength];
+        
+        suggestedPercentage[team.m0] = _m0;
+        suggestedPercentage[team.m1] = _m1;
+        suggestedPercentage[team.m2] = _m2;
+        suggestedPercentage[team.m3] = _m3;
+
+        _createProposal(1);
+        // Event
+        emit PercentagesProposalMade(msg.sender, now, _m0, _m1, _m2, _m3);
+    }
+
+    function _updatePercentages (uint256 _proposalIndex) private {
+        if (_isAllAgree(proposalMap[_proposalIndex])) {        
+            percentages[team.m0] = suggestedPercentagesMap[_proposalIndex][team.m0];
+            percentages[team.m1] = suggestedPercentagesMap[_proposalIndex][team.m1];
+            percentages[team.m2] = suggestedPercentagesMap[_proposalIndex][team.m2];
+            percentages[team.m3] = suggestedPercentagesMap[_proposalIndex][team.m3];
+            emit PercentagesUpdated(percentages[team.m0], percentages[team.m1], percentages[team.m2], percentages[team.m3]);
         }
-
-        // Event 
-        emit PercentagesUpdated(newPercentages[team.m0], newPercentages[team.m1], newPercentages[team.m2], newPercentages[team.m3]);
     }
 
     /**
      * Update the team members, need all memebers's signatures
      */
-    function updateMembers(address _m0, address _m1, address _m2, address _m3) external onlyMember {
-        _resetStatus();
-        _resetPercentages();
-        _resetTerminal();
-        if(_m0 != address(0) && _m1 != address(0) && _m2 != address(0) && _m3 != address(0)) {
-            newTeam.m0 = _m0;
-            newTeam.m1 = _m1;
-            newTeam.m2 = _m2;
-            newTeam.m3 = _m3;
+    function updateMembersProposal(address _m0, address _m1, address _m2, address _m3) external onlyMember {
+        require (_m0 != address(0) && _m1 != address(0) && _m2 != address(0) && _m3 != address(0), "invalid addresses");
+        Team storage suggestedTeam = suggestedTeamMap[proposalLength];
 
-            delete signatures[team.m0];
-            delete signatures[team.m1];
-            delete signatures[team.m2];
-            delete signatures[team.m3];
-        }
-        if(newTeam.m0 != address(0) && newTeam.m1 != address(0) && newTeam.m2 != address(0) && newTeam.m3 != address(0)) {
-            signatures[msg.sender] = true;
-        }
-        if(signatures[team.m0] && signatures[team.m1] && signatures[team.m2] && signatures[team.m3]) {
-            team.m0 = newTeam.m0;
-            team.m1 = newTeam.m1;
-            team.m2 = newTeam.m2;
-            team.m3 = newTeam.m3;
+        suggestedTeam.m0 = _m0;
+        suggestedTeam.m1 = _m1;
+        suggestedTeam.m2 = _m2;
+        suggestedTeam.m3 = _m3;
 
-            _resetMembers();
-
-            delete signatures[team.m0];
-            delete signatures[team.m1];
-            delete signatures[team.m2];
-            delete signatures[team.m3];
-        }
-
+        _createProposal(2);
         // Event
-        emit MembersUpdated(newTeam.m0, newTeam.m1, newTeam.m2, newTeam.m3);
+        emit MembersProposalMade(msg.sender, now, _m0, _m1, _m2, _m3);
+    }
+
+    function _updateMembers (uint256 _proposalIndex) private {
+        if (_isAllAgree(proposalMap[_proposalIndex])) {        
+            team.m0 = suggestedTeamMap[_proposalIndex].m0;
+            team.m1 = suggestedTeamMap[_proposalIndex].m1;
+            team.m2 = suggestedTeamMap[_proposalIndex].m2;
+            team.m3 = suggestedTeamMap[_proposalIndex].m3;
+            emit MembersUpdated(team.m0, team.m1, team.m2, team.m3);
+        }
     }
 
     /**
-     * Update the contract status, enable or disable
+     * Update the contract status, enable 1 or disable 2
      */
-    function updateStatus(uint8 _status)  external onlyMember {
-        _resetMembers();
-        _resetPercentages();
-        _resetTerminal();
-        if(_status != 0) {
-            newStatus = _status;
+    function updateStatusProposal(uint8 _status) external onlyMember {
+        require (_status == 1 || _status == 2, "must be one of 1 and 2");
 
-            delete signatures[team.m0];
-            delete signatures[team.m1];
-            delete signatures[team.m2];
-            delete signatures[team.m3];
-        }
-        if(newStatus != 0) {
-            signatures[msg.sender] = true;
-        }
-        uint8 sigCount = 0;
-        if(signatures[team.m0]) {
-            sigCount++; 
-        }
-        if(signatures[team.m1]) {
-            sigCount++; 
-        }
-        if(signatures[team.m2]) {
-            sigCount++; 
-        }
-        if(signatures[team.m3]) {
-            sigCount++; 
-        }
-        if(sigCount >= 3) {
-            if(newStatus == 1) {
+        suggestStatusMap[proposalLength] = _status;
+        _createProposal(3);
+        // Event
+        emit StatusProposalMade(msg.sender, now, _status);
+    }
+
+    function _updateStatus(uint256 _proposalIndex) private {
+        if (_isThreeQuarterAgree(proposalMap[_proposalIndex])) {        
+            if (suggestStatusMap[_proposalIndex] == 1) {
                 enabled = true;               
                 // restart and reset timestamps
                 for(uint256 i = 0; i < timestamps.length; i++) {
@@ -369,50 +403,36 @@ contract FoundingTeam is Owned {
                         timestamps[i] = 0;
                     }
                 }
-            }else if(newStatus == 2) {
+            } else if (suggestStatusMap[_proposalIndex] == 2) {
                 enabled = false;
             }
-            delete signatures[team.m0];
-            delete signatures[team.m1];
-            delete signatures[team.m2];
-            delete signatures[team.m3];
-            _resetStatus();
-        }
 
-        // Event
-        emit StatusUpdated(newStatus);
+            // Event
+            emit StatusUpdated(suggestStatusMap[_proposalIndex]);
+        }
     }
 
     /**
-     * Terminate the contract, the remaining candy will transfer to the original owner
+     * Terminate the contract
+     * the remaining candy will transfer to the original owner
+     * _terminal cant be false
      */
-    function terminate(bool _terminal) external onlyMember {
-        _resetStatus();
-        _resetMembers();
-        _resetPercentages();
-        if(_terminal) {
-            terminal = true;
-            delete signatures[team.m0];
-            delete signatures[team.m1];
-            delete signatures[team.m2];
-            delete signatures[team.m3];
-        }
-        if(terminal) {
-            signatures[msg.sender] = true;
-        }
-        if(signatures[team.m0] && signatures[team.m1] && signatures[team.m2] && signatures[team.m3]) {
+    function terminateProposal(bool _terminal) external onlyMember {
+        require (_terminal, "must true");
+
+        suggestTerminalMap[proposalLength] = _terminal;
+        _createProposal(4);
+        // Event
+        emit TerminalProposalMade(msg.sender, now, _terminal);
+    }
+
+    function _terminate(uint256 _proposalIndex) private {
+        if (_isAllAgree(proposalMap[_proposalIndex])) {        
             _withdraw();
 
-            delete signatures[team.m0];
-            delete signatures[team.m1];
-            delete signatures[team.m2];
-            delete signatures[team.m3];
-
-            _resetTerminal();
+            // Event
+            emit Terminated();
         }
-
-        // Event
-        emit Terminated();
     }
 
     /**
