@@ -114,10 +114,6 @@ contract FoundingTeam is Owned {
         tripio = TripioToken(_trio);
 
         enabled = true;
-
-        // Only for test
-        timestamps.push(1544544000); // 2018-12-12	00:00 
-        timestamps.push(1544630400); // 2018-12-13	00:00 
         
         // All timestamps from 2019-06-01 to 2021-05-01
         timestamps.push(1559361600); // 2019-06-01	12:00 
