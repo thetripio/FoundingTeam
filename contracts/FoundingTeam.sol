@@ -13,11 +13,6 @@ contract FoundingTeam is Owned {
         address m3;
     }
 
-    struct Deposit {
-        address owner;
-        uint256 amount;
-    }
-
     struct Proposal {
         address sponsor;
         mapping(address => bool) signatures;
@@ -43,12 +38,10 @@ contract FoundingTeam is Owned {
     // Percentage of funds
     mapping(address => uint16) percentages;
 
-    // All deposits
-    mapping(uint256 => Deposit) deposits;
-    uint256 depositIndex;
-
     // Enable 
     bool public enabled;
+
+    address public fundingSource;
 
     // Timestamps
     uint256[] timestamps;
@@ -104,7 +97,7 @@ contract FoundingTeam is Owned {
      * @param _m3 Team member 3 has 12.4% found 
      * @param _trio TRIO contract address
      */
-    constructor(address _m0, address _m1, address _m2, address _m3, address _trio) public {
+    constructor(address _m0, address _m1, address _m2, address _m3, address _trio, address _fundingSource) public {
         team = Team(_m0, _m1, _m2, _m3);
         percentages[_m0] = 440;
         percentages[_m1] = 250;
@@ -112,12 +105,9 @@ contract FoundingTeam is Owned {
         percentages[_m3] = 124;
 
         tripio = TripioToken(_trio);
+        fundingSource = _fundingSource;
 
         enabled = true;
-
-        // Only for test
-        timestamps.push(1544544000); // 2018-12-12	00:00 
-        timestamps.push(1544630400); // 2018-12-13	00:00 
         
         // All timestamps from 2019-06-01 to 2021-05-01
         timestamps.push(1559361600); // 2019-06-01	12:00 
@@ -164,17 +154,7 @@ contract FoundingTeam is Owned {
 
     function _withdraw() private {
         uint256 tokens = tripio.balanceOf(address(this));
-        for(uint256 i = 1; i <= depositIndex; i++) {
-            if(deposits[i].amount <= tokens) {
-                tripio.transfer(deposits[i].owner, deposits[i].amount);
-                tokens -= deposits[i].amount;
-            }else {
-                tripio.transfer(deposits[i].owner, tokens);
-                break;
-            }
-        }
-
-        depositIndex = 0;
+        tripio.transfer(fundingSource, tokens);
     }
 
     /**
@@ -258,11 +238,10 @@ contract FoundingTeam is Owned {
      * Record fund reserve
      */
     function deposit() external returns(bool) {
+        require (msg.sender == fundingSource, "msg.sender must be fundingSource");
         uint256 value = tripio.allowance(msg.sender, address(this));
         require(value > 0, "Value must more than 0");
         tripio.transferFrom(msg.sender, address(this), value);
-        depositIndex++;
-        deposits[depositIndex] = Deposit(msg.sender, value);
         
         // Event
         emit Deposited(msg.sender, value);
@@ -274,6 +253,7 @@ contract FoundingTeam is Owned {
     function vote (address _sponsor, uint256 _proposalIndex, uint _proposalType) external onlyMember {
         Proposal storage proposal = proposalMap[_proposalIndex];
         require (proposal.sponsor == _sponsor && proposal.proposalType == _proposalType, "proposal check fail");
+        require (proposal.timestamp + 2 days > now, "Expired proposal");
 
         proposal.signatures[msg.sender] = true;
        
@@ -299,8 +279,7 @@ contract FoundingTeam is Owned {
     function _isThreeQuarterAgree (Proposal storage _proposal) private returns (bool res) {
         mapping (address => bool) storage signatures = _proposal.signatures;
         uint256 timestamp = _proposal.timestamp;
-        
-        return (_proposal.timestamp + 1 days > now) && (
+        return (
             (signatures[team.m0] && signatures[team.m1] && signatures[team.m2])
             || (signatures[team.m0] && signatures[team.m2] && signatures[team.m3])
             || (signatures[team.m1] && signatures[team.m2] && signatures[team.m3])
@@ -313,9 +292,7 @@ contract FoundingTeam is Owned {
     function _isAllAgree (Proposal storage _proposal) private returns (bool res) {
         mapping (address => bool) storage signatures = _proposal.signatures;
         uint256 timestamp = _proposal.timestamp;
-
-        return (_proposal.timestamp + 1 days > now)
-        && signatures[team.m0] && signatures[team.m1] && signatures[team.m2] && signatures[team.m3];
+        return signatures[team.m0] && signatures[team.m1] && signatures[team.m2] && signatures[team.m3];
     }
 
     function _createProposal (uint8 _proposalType) private {
@@ -372,17 +349,25 @@ contract FoundingTeam is Owned {
     }
 
     function _updateMembers (uint256 _proposalIndex) private {
-        if (_isAllAgree(proposalMap[_proposalIndex])) {        
-            team.m0 = suggestedTeamMap[_proposalIndex].m0;
-            team.m1 = suggestedTeamMap[_proposalIndex].m1;
-            team.m2 = suggestedTeamMap[_proposalIndex].m2;
-            team.m3 = suggestedTeamMap[_proposalIndex].m3;
+        if (_isAllAgree(proposalMap[_proposalIndex])) {
+            Team memory newTeam = Team(
+                suggestedTeamMap[_proposalIndex].m0,
+                suggestedTeamMap[_proposalIndex].m1,
+                suggestedTeamMap[_proposalIndex].m2,
+                suggestedTeamMap[_proposalIndex].m3
+            );
+            percentages[newTeam.m0] = percentages[team.m0];
+            percentages[newTeam.m1] = percentages[team.m1];
+            percentages[newTeam.m2] = percentages[team.m2];
+            percentages[newTeam.m3] = percentages[team.m3];
+
+            team = newTeam;
             emit MembersUpdated(team.m0, team.m1, team.m2, team.m3);
         }
     }
 
     /**
-     * Update the contract status, enable 1 or disable 2
+     * Update the contract status, enable for 1 or disable for 2
      */
     function updateStatusProposal(uint8 _status) external onlyMember {
         require (_status == 1 || _status == 2, "must be one of 1 and 2");
@@ -448,20 +433,16 @@ contract FoundingTeam is Owned {
                 count++;
             }
         }
-        require(tokens > count && count > 0, "");
-        uint256 part = tokens/count;
-        if(count == 1) {
-            part = tokens;
-        }
+        require(tokens > count && count > 0, "tokens should be larger than count");
 
-        uint256 token0 = part * percentages[team.m0]/1000;
-        uint256 token1 = part * percentages[team.m1]/1000;
-        uint256 token2 = part * percentages[team.m2]/1000;
-        uint256 token3 = part * percentages[team.m3]/1000;
+        uint256 token0 = tokens * percentages[team.m0]/1000/count;
+        uint256 token1 = tokens * percentages[team.m1]/1000/count;
+        uint256 token2 = tokens * percentages[team.m2]/1000/count;
+        uint256 token3 = tokens * percentages[team.m3]/1000/count;
 
         uint256 enabledCount = 0;
         for(uint256 i = 0; i < timestamps.length; i++) {
-            if(timestamps[i] != 0 && timestamps[i] < now) {
+            if(timestamps[i] != 0 && timestamps[i] <= now) {
                 enabledCount++;
                 if(token0 > 0) {
                     tripio.transfer(team.m0, token0);
@@ -482,7 +463,7 @@ contract FoundingTeam is Owned {
                 timestamps[i] = 0;
             }
         }
-        require(enabledCount > 0, "");
+        require(enabledCount > 0, "enabledCount cant be zero");
 
         if(count == 1 && tokens > 0) {
             // withdraw the remaining candy
