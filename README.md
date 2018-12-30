@@ -125,7 +125,7 @@
 
   - ```javascript
     {
-    	_sponsor: <address>,
+        _sponsor: <address>,
         _signatures: <bool[]>,
         _timestamp: <uint256>,
         _proposalType: <uint8>,
@@ -149,7 +149,8 @@
      const proposalLength = await contract.methods.proposalLength().call();
      const proposalIndex = proposalLength - 1;
      const proposal = await contract.methods.teamProposal(proposalIndex).call();
-     // Maybe a new proposal made before teamProposal() and after proposalLength(), so you should check this proposal carefully.
+     // Maybe a new proposal made before teamProposal() and after proposalLength(),
+     // so you should check this proposal carefully if this is what you want.
     }
     
     ```
