@@ -276,9 +276,8 @@ contract FoundingTeam is Owned {
     /**
      * check if 3/4 agree
      */
-    function _isThreeQuarterAgree (Proposal storage _proposal) private returns (bool res) {
+    function _isThreeQuarterAgree (Proposal storage _proposal) private view returns (bool res) {
         mapping (address => bool) storage signatures = _proposal.signatures;
-        uint256 timestamp = _proposal.timestamp;
         return (
             (signatures[team.m0] && signatures[team.m1] && signatures[team.m2])
             || (signatures[team.m0] && signatures[team.m2] && signatures[team.m3])
@@ -289,9 +288,8 @@ contract FoundingTeam is Owned {
     /**
      * check if 4/4 agree
      */
-    function _isAllAgree (Proposal storage _proposal) private returns (bool res) {
+    function _isAllAgree (Proposal storage _proposal) private view returns (bool res) {
         mapping (address => bool) storage signatures = _proposal.signatures;
-        uint256 timestamp = _proposal.timestamp;
         return signatures[team.m0] && signatures[team.m1] && signatures[team.m2] && signatures[team.m3];
     }
 

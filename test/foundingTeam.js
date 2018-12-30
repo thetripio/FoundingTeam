@@ -69,7 +69,6 @@ contract('FoundingTeam', function(accounts) {
     console.log('timestamp', timestamp);
     await tripioToken.enableTransfer();
     await tripioToken.transfer(fundingSource, to18Decimals('10000'));
-    console.log('mmmmm', await web3.eth.getGasPrice());
   });
 
   after(async () => {

@@ -52,19 +52,19 @@
 
 #### Data & operations
 
-- [Percentages][]
+- [Percentages](#Percentages)
 
-- [Members][]
+- [Members](#Members)
 
-- [Status][]
+- [Status](#Status)
 
-- [Terminal][]
+- [Terminal](#Terminal)
 
-- [Proposal][]
+- [Proposal](#Proposal)
 
   
 
-#####Percentages
+##### Percentages
 
 - proposalType: `1`
 
