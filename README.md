@@ -11,7 +11,7 @@
 - percentages[m2]: `18.6%`
 - percentages[m3]: `12.4%`
 - owner: `0x201b99C0E5c4f2B4eaBF8b2528F578E21BD8ee49`
-- contract: `0x699Aa61b681CE15beB0aF44c49c83537A677FEAc`
+- contract: `0x264c273E94B456D7f00A27039F8fBB5e369F3D3E`
 - trioContract: `0x8B40761142B9aa6dc8964e61D0585995425C3D94`
 - fundingSource:`0x448dD187b515d8Ee64131c00a975A7941e330198`
 
@@ -26,7 +26,7 @@
 - percentages[m2]: `18.6%`
 - percentages[m3]: `12.4%`
 - owner: `0x201b99C0E5c4f2B4eaBF8b2528F578E21BD8ee49`
-- contract: `0x13D861CD2Aa3Fc8aE194056e774156B0a457a054`
+- contract: `0x5130779be9DE2E6B02fbD7Dec2928C365a34296b`
 - trioContract: `0xF142f1c7BaDc95FB438302D7Cf0a5Db426f8f779`
 - fundingSource:`0x262bAB6a90Aa1741390c4A3Ec58855C81d9728E1`
 
@@ -136,7 +136,6 @@
     }
     ```
 
-  - 
 
 - Get
 
@@ -155,7 +154,6 @@
     
     ```
 
-  - 
 
 - Vote for proposal (sending tx):
 
