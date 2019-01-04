@@ -17,7 +17,7 @@ module.exports = {
       network_id: 1,
       provider: new HDWalletProvider(MNEMONIC, "http://35.200.87.13:8545/"),
       gas: GAS_LIMIT,
-      gasPrice: 2200000000,
+      gasPrice: 4200000000,
     },
     ropsten: {
       network_id: "3",
